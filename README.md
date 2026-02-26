@@ -1,5 +1,8 @@
 # Time Space Rebuild (時空重構) — Linux Fix
 
+> Данный скрипт предназначен для владельцев лицензионной копии игры
+> и служит исключительно для обеспечения совместимости с Linux.
+
 Игра не поддерживает Linux официально. Для запуска через Proton нужно:
 1. Установить 32-битный Vulkan-драйвер (игра 32-битная)
 2. Расшифровать и перемуксировать внутриигровые видео (HLS + AES-128 не поддерживается Wine Media Foundation)
@@ -9,6 +12,7 @@
 
 - Steam с Proton (GE-Proton или Proton Experimental)
 - Для AMD GPU: `lib32-vulkan-radeon` (Arch) или аналог для вашего дистрибутива
+- Для Intel GPU: `lib32-vulkan-intel` (Arch) или аналог для вашего дистрибутива
 - Для NVIDIA GPU: `lib32-nvidia-utils`
 - `ffmpeg` и `openssl` (обычно уже установлены)
 
@@ -19,6 +23,11 @@
 Arch Linux (AMD):
 ```bash
 sudo pacman -S lib32-vulkan-radeon
+```
+
+Arch Linux (Intel):
+```bash
+sudo pacman -S lib32-vulkan-intel
 ```
 
 Arch Linux (NVIDIA):
