@@ -1,24 +1,26 @@
 # Time Space Rebuild (時空重構) — Linux Fix
 
-> Данный скрипт предназначен для владельцев лицензионной копии игры
-> и служит исключительно для обеспечения совместимости с Linux.
+> This script is intended for owners of a legitimate copy of the game
+> and is solely aimed at ensuring compatibility with Linux.
 
-Игра не поддерживает Linux официально. Для запуска через Proton нужно:
-1. Установить 32-битный Vulkan-драйвер (игра 32-битная)
-2. Расшифровать и перемуксировать внутриигровые видео (HLS + AES-128 не поддерживается Wine Media Foundation)
-3. Добавить параметр запуска в Steam
+The game does not officially support Linux. To run it via Proton you need to:
+1. Install a 32-bit Vulkan driver (the game is 32-bit)
+2. Decrypt and remux in-game videos (HLS + AES-128 is not supported by Wine Media Foundation)
+3. Add a Steam launch option
 
-## Требования
+[Инструкция на русском](README-RU.md)
 
-- Steam с Proton (GE-Proton или Proton Experimental)
-- Для AMD GPU: `lib32-vulkan-radeon` (Arch) или аналог для вашего дистрибутива
-- Для Intel GPU: `lib32-vulkan-intel` (Arch) или аналог для вашего дистрибутива
-- Для NVIDIA GPU: `lib32-nvidia-utils`
-- `ffmpeg` и `openssl` (обычно уже установлены)
+## Requirements
 
-## Установка
+- Steam with Proton (GE-Proton or Proton Experimental)
+- For AMD GPU: `lib32-vulkan-radeon` (Arch) or equivalent for your distro
+- For Intel GPU: `lib32-vulkan-intel` (Arch) or equivalent for your distro
+- For NVIDIA GPU: `lib32-nvidia-utils`
+- `ffmpeg` and `openssl` (usually already installed)
 
-### 1. Установить 32-битный Vulkan-драйвер
+## Installation
+
+### 1. Install 32-bit Vulkan driver
 
 Arch Linux (AMD):
 ```bash
@@ -40,50 +42,53 @@ Ubuntu/Debian (AMD):
 sudo apt install mesa-vulkan-drivers:i386
 ```
 
-### 2. Параметры запуска в Steam
+### 2. Steam launch options
 
-Steam → ПКМ по игре → Свойства → Общие → Параметры запуска:
+Steam → Right-click the game → Properties → General → Launch Options:
 ```
 PROTON_MEDIA_USE_GST=1 %command%
 ```
 
-### 3. Запустить скрипт модификации видео
+### 3. Run the video fix script
 
-Скрипт автоматически:
-- Находит папку игры в Steam
-- Создает бэкап оригинальных видеофайлов
-- Расшифровывает .ts сегменты (AES-128)
-- Собирает сегменты в чистые MPEG-TS файлы
-- Заменяет .m3u8 файлы на готовые видео
+The script automatically:
+- Locates the game folder in Steam
+- Creates a backup of the original video files
+- Decrypts .ts segments (AES-128)
+- Remuxes segments into clean MPEG-TS files
+- Replaces .m3u8 files with ready-to-play videos
 
 ```bash
 chmod +x fix-videos.sh
 ./fix-videos.sh
 ```
 
-Для указания нестандартного пути к игре:
+To specify a custom game path:
 ```bash
 ./fix-videos.sh /path/to/steamapps/common/時空重構
 ```
 
-### 4. Запустить игру
+### 4. Launch the game
 
-Готово. Видео должны воспроизводиться корректно.
+Done. Videos should play correctly.
 
-## Откат изменений
+## Reverting changes
 
-Бэкап сохраняется в `CommonVideoClips.bak` рядом с `CommonVideoClips`.
-Для отката:
+The backup is saved as `CommonVideoClips.bak` next to `CommonVideoClips`.
+To revert:
 ```bash
 GAME="$HOME/.local/share/Steam/steamapps/common/時空重構/時空重構/時空重構_Data/StreamingAssets"
 rm -rf "$GAME/CommonVideoClips"
 mv "$GAME/CommonVideoClips.bak" "$GAME/CommonVideoClips"
 ```
 
-## Суть проблемы
+You can also use Steam's "Verify integrity of game files" to restore the originals,
+then run `fix-videos.sh` again.
 
-Внутриигровые видео хранятся в формате HLS (M3U8 + .ts сегменты) с AES-128 шифрованием.
-Wine/Proton Media Foundation не поддерживает HLS. Вместо видео показывается тестовая таблица (цветные полосы).
+## The problem
 
-Скрипт расшифровывает сегменты и собирает их в обычные MPEG-TS файлы,
-которые Media Foundation (через GStreamer backend) может воспроизвести.
+In-game videos are stored in HLS format (M3U8 + .ts segments) with AES-128 encryption.
+Wine/Proton Media Foundation does not support HLS. Instead of video, a test pattern (color bars) is displayed.
+
+The script decrypts the segments and remuxes them into regular MPEG-TS files
+that Media Foundation (via the GStreamer backend) can play.
