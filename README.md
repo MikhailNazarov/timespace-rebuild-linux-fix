@@ -3,19 +3,17 @@
 > This script is intended for owners of a legitimate copy of the game
 > and is solely aimed at ensuring compatibility with Linux.
 
-The game does not officially support Linux. To run it via Proton you need to:
-1. Install a 32-bit Vulkan driver (the game is 32-bit)
-2. Decrypt and remux in-game videos (HLS + AES-128 is not supported by Wine Media Foundation)
-3. Add a Steam launch option
+The game does not officially support Linux. It runs via Proton, but in-game videos
+(HLS + AES-128 encrypted) do not play — you get a test pattern (color bars) or a crash.
+
+This script decrypts and remuxes the videos into plain MPEG-TS files that GE-Proton can play.
 
 [Инструкция на русском](README-RU.md)
 
 ## Requirements
 
-- Steam with Proton (GE-Proton or Proton Experimental)
-- For AMD GPU: `lib32-vulkan-radeon` (Arch) or equivalent for your distro
-- For Intel GPU: `lib32-vulkan-intel` (Arch) or equivalent for your distro
-- For NVIDIA GPU: `lib32-nvidia-utils`
+- Steam with **GE-Proton** (install via [ProtonUp-Qt](https://github.com/DavidoTek/ProtonUp-Qt) or manually from [GE-Proton releases](https://github.com/GloriousEggroll/proton-ge-custom/releases))
+- 32-bit Vulkan driver (the game is 32-bit)
 - `ffmpeg` and `openssl` (usually already installed)
 
 ## Installation
@@ -37,28 +35,29 @@ Arch Linux (NVIDIA):
 sudo pacman -S lib32-nvidia-utils
 ```
 
-Ubuntu/Debian (AMD):
+Ubuntu/Debian (AMD/Intel):
 ```bash
 sudo apt install mesa-vulkan-drivers:i386
 ```
 
-### 2. Steam launch options
-
-Steam → Right-click the game → Properties → General → Launch Options:
+Ubuntu/Debian (NVIDIA):
+```bash
+# Find your driver version: nvidia-smi | head -3
+sudo apt install libnvidia-gl-560:i386
 ```
-PROTON_MEDIA_USE_GST=1 %command%
-```
 
-### 3. Run the video fix script
+### 2. Run the video fix script
 
 The script automatically:
 - Locates the game folder in Steam
 - Creates a backup of the original video files
-- Decrypts .ts segments (AES-128)
+- Decrypts AES-128 encrypted .ts segments
 - Remuxes segments into clean MPEG-TS files
-- Replaces .m3u8 files with ready-to-play videos
+- Replaces .m3u8 playlists with ready-to-play videos
 
 ```bash
+git clone https://github.com/MikhailNazarov/timespace-rebuild-linux-fix.git
+cd timespace-rebuild-linux-fix
 chmod +x fix-videos.sh
 ./fix-videos.sh
 ```
@@ -68,9 +67,9 @@ To specify a custom game path:
 ./fix-videos.sh /path/to/steamapps/common/時空重構
 ```
 
-### 4. Launch the game
+### 3. Select GE-Proton and launch
 
-Done. Videos should play correctly.
+In Steam: right-click the game → Properties → Compatibility → check "Force the use of a specific Steam Play compatibility tool" → select **GE-Proton**.
 
 ## Reverting changes
 
@@ -82,13 +81,16 @@ rm -rf "$GAME/CommonVideoClips"
 mv "$GAME/CommonVideoClips.bak" "$GAME/CommonVideoClips"
 ```
 
-You can also use Steam's "Verify integrity of game files" to restore the originals,
-then run `fix-videos.sh` again.
+You can also use Steam's "Verify integrity of game files" to restore the originals.
 
 ## The problem
 
-In-game videos are stored in HLS format (M3U8 + .ts segments) with AES-128 encryption.
-Wine/Proton Media Foundation does not support HLS. Instead of video, a test pattern (color bars) is displayed.
+The game uses [AVProVideo](https://renderheads.com/products/avpro-video/) for video playback via Windows Media Foundation.
+In-game videos are stored as HLS playlists (`.m3u8` + `.ts` segments) encrypted with AES-128.
 
-The script decrypts the segments and remuxes them into regular MPEG-TS files
-that Media Foundation (via the GStreamer backend) can play.
+Wine/Proton's Media Foundation implementation cannot handle this format:
+- **Proton Experimental**: shows a 320×240 test pattern (SMPTE color bars) instead of video
+- **GE-Proton**: crashes when attempting to play encrypted HLS
+
+The script decrypts the segments and assembles them into plain MPEG-TS files
+that Media Foundation in GE-Proton can play natively.

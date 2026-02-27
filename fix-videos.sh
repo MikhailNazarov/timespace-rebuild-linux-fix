@@ -48,11 +48,11 @@ if [ ! -f "$KEY_FILE" ]; then
     exit 1
 fi
 
-KEY=$(xxd -p "$KEY_FILE" | tr -d '\n')
+KEY=$(od -A n -t x1 "$KEY_FILE" | tr -d ' \n')
 
 # Извлечение IV из первого m3u8 файла
-FIRST_M3U8=$(ls "$CLIPS"/*.m3u8 | head -1)
-IV=$(grep -oP 'IV=0x\K[0-9a-fA-F]+' "$FIRST_M3U8" | head -1)
+FIRST_M3U8=$(find "$CLIPS" -maxdepth 1 -name '*.m3u8' -print -quit)
+IV=$(grep -oP 'IV=0x\K[0-9a-fA-F]+' "$FIRST_M3U8")
 
 if [ -z "$IV" ]; then
     echo "ОШИБКА: Не удалось извлечь IV из $FIRST_M3U8"
@@ -61,8 +61,6 @@ fi
 
 echo "=== Time Space Rebuild — Linux Video Fix ==="
 echo "Папка игры: $GAME_ROOT"
-echo "Ключ: $KEY"
-echo "IV: $IV"
 echo ""
 
 # --- Создание бэкапа ---
@@ -73,7 +71,7 @@ echo "  Бэкап: $BACKUP"
 
 # --- Расшифровка .ts файлов ---
 
-TS_COUNT=$(ls "$CLIPS"/*.ts 2>/dev/null | wc -l)
+TS_COUNT=$(find "$CLIPS" -maxdepth 1 -name '*.ts' | wc -l)
 echo "[2/3] Расшифровка $TS_COUNT .ts файлов..."
 
 count=0
@@ -101,7 +99,7 @@ fi
 
 # --- Сборка и ремуксирование m3u8 → MPEG-TS ---
 
-M3U8_COUNT=$(ls "$BACKUP"/*.m3u8 2>/dev/null | wc -l)
+M3U8_COUNT=$(find "$BACKUP" -maxdepth 1 -name '*.m3u8' | wc -l)
 echo "[3/3] Ремуксирование $M3U8_COUNT видео..."
 
 count=0
@@ -138,8 +136,7 @@ echo "  Ремуксировано: $count, ошибок: $errors"
 echo ""
 echo "=== Готово ==="
 echo ""
-echo "Не забудьте добавить параметр запуска в Steam:"
-echo "  PROTON_MEDIA_USE_GST=1 %command%"
+echo "Убедитесь, что в Steam выбран GE-Proton для этой игры."
 echo ""
 echo "Бэкап оригиналов: $BACKUP"
 echo "Для освобождения места можно удалить бэкап после проверки работоспособности."
