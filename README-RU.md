@@ -52,6 +52,7 @@ sudo apt install libnvidia-gl-560:i386
 - Расшифровывает .ts сегменты (AES-128)
 - Собирает сегменты в чистые MPEG-TS файлы
 - Заменяет .m3u8 плейлисты на готовые видео
+- Обрабатывает SD и 4K видео (4K DLC опционален)
 
 ```bash
 git clone https://github.com/MikhailNazarov/timespace-rebuild-linux-fix.git

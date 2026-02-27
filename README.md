@@ -54,6 +54,7 @@ The script automatically:
 - Decrypts AES-128 encrypted .ts segments
 - Remuxes segments into clean MPEG-TS files
 - Replaces .m3u8 playlists with ready-to-play videos
+- Processes both SD and 4K videos (4K DLC is optional)
 
 ```bash
 git clone https://github.com/MikhailNazarov/timespace-rebuild-linux-fix.git

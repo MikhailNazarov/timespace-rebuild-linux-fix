@@ -15,7 +15,7 @@ fi
 GAME_DIR="$GAME_ROOT/時空重構"
 STREAMING="$GAME_DIR/時空重構_Data/StreamingAssets"
 CLIPS="$STREAMING/CommonVideoClips"
-BACKUP="${CLIPS}.bak"
+CLIPS_4K="$GAME_ROOT/TimeRebuildSpace4KVideo"
 
 if [ ! -d "$CLIPS" ]; then
     echo "ОШИБКА: Папка с видео не найдена: $CLIPS"
@@ -32,111 +32,120 @@ for cmd in ffmpeg openssl; do
     fi
 done
 
-# --- Проверка что скрипт не запускался ранее ---
+# --- Функция обработки одной папки с видео ---
 
-if [ -d "$BACKUP" ]; then
-    echo "Бэкап уже существует: $BACKUP"
-    echo "Похоже, скрипт уже запускался. Для повторного запуска удалите бэкап."
-    exit 1
-fi
+process_clips() {
+    local clips="$1"
+    local label="$2"
+    local backup="${clips}.bak"
 
-# --- Извлечение ключа шифрования ---
+    if [ -d "$backup" ]; then
+        echo "[$label] Бэкап уже существует: $backup — пропуск."
+        return
+    fi
 
-KEY_FILE="$CLIPS/encrypt.key"
-if [ ! -f "$KEY_FILE" ]; then
-    echo "ОШИБКА: Файл ключа не найден: $KEY_FILE"
-    exit 1
-fi
+    # Извлечение ключа
+    local key_file="$clips/encrypt.key"
+    if [ ! -f "$key_file" ]; then
+        echo "[$label] ОШИБКА: Файл ключа не найден: $key_file"
+        return 1
+    fi
 
-KEY=$(od -A n -t x1 "$KEY_FILE" | tr -d ' \n')
+    local key iv first_m3u8
+    key=$(od -A n -t x1 "$key_file" | tr -d ' \n')
 
-# Извлечение IV из первого m3u8 файла
-FIRST_M3U8=$(find "$CLIPS" -maxdepth 1 -name '*.m3u8' -print -quit)
-IV=$(grep -oP 'IV=0x\K[0-9a-fA-F]+' "$FIRST_M3U8")
+    first_m3u8=$(find "$clips" -maxdepth 1 -name '*.m3u8' -print -quit)
+    iv=$(grep -oP 'IV=0x\K[0-9a-fA-F]+' "$first_m3u8")
 
-if [ -z "$IV" ]; then
-    echo "ОШИБКА: Не удалось извлечь IV из $FIRST_M3U8"
-    exit 1
-fi
+    if [ -z "$iv" ]; then
+        echo "[$label] ОШИБКА: Не удалось извлечь IV из $first_m3u8"
+        return 1
+    fi
+
+    # Бэкап
+    echo "[$label] Создание бэкапа..."
+    cp -r "$clips" "$backup"
+
+    # Расшифровка
+    local ts_count count=0 errors=0
+    ts_count=$(find "$clips" -maxdepth 1 -name '*.ts' | wc -l)
+    echo "[$label] Расшифровка $ts_count .ts файлов..."
+
+    for f in "$clips"/*.ts; do
+        if openssl aes-128-cbc -d -K "$key" -iv "$iv" -in "$f" -out "${f}.dec" 2>/dev/null; then
+            mv "${f}.dec" "$f"
+            count=$((count + 1))
+        else
+            rm -f "${f}.dec"
+            errors=$((errors + 1))
+        fi
+
+        local total=$((count + errors))
+        if [ $((total % 100)) -eq 0 ]; then
+            echo "  $total / $ts_count..."
+        fi
+    done
+    echo "  Расшифровано: $count, ошибок: $errors"
+
+    if [ "$errors" -gt 0 ]; then
+        echo "  ПРЕДУПРЕЖДЕНИЕ: Некоторые файлы не удалось расшифровать"
+    fi
+
+    # Ремуксирование
+    local m3u8_count
+    m3u8_count=$(find "$backup" -maxdepth 1 -name '*.m3u8' | wc -l)
+    echo "[$label] Ремуксирование $m3u8_count видео..."
+
+    count=0
+    errors=0
+    for m3u8 in "$backup"/*.m3u8; do
+        local name ts_files=""
+        name=$(basename "$m3u8")
+
+        while IFS= read -r line; do
+            [[ "$line" =~ ^# ]] && continue
+            [[ -z "$line" ]] && continue
+            ts_files="$ts_files|$clips/$line"
+        done < "$m3u8"
+        ts_files="${ts_files:1}"
+
+        if [ -n "$ts_files" ]; then
+            if ffmpeg -y -i "concat:${ts_files}" -c copy -f mpegts "$clips/$name" 2>/dev/null; then
+                count=$((count + 1))
+            else
+                errors=$((errors + 1))
+                echo "  ОШИБКА: $name"
+            fi
+        fi
+
+        local total=$((count + errors))
+        if [ $((total % 50)) -eq 0 ]; then
+            echo "  $total / $m3u8_count..."
+        fi
+    done
+    echo "  Ремуксировано: $count, ошибок: $errors"
+}
+
+# --- Основной процесс ---
 
 echo "=== Time Space Rebuild — Linux Video Fix ==="
 echo "Папка игры: $GAME_ROOT"
 echo ""
 
-# --- Создание бэкапа ---
+process_clips "$CLIPS" "SD"
 
-echo "[1/3] Создание бэкапа..."
-cp -r "$CLIPS" "$BACKUP"
-echo "  Бэкап: $BACKUP"
-
-# --- Расшифровка .ts файлов ---
-
-TS_COUNT=$(find "$CLIPS" -maxdepth 1 -name '*.ts' | wc -l)
-echo "[2/3] Расшифровка $TS_COUNT .ts файлов..."
-
-count=0
-errors=0
-for f in "$CLIPS"/*.ts; do
-    if openssl aes-128-cbc -d -K "$KEY" -iv "$IV" -in "$f" -out "${f}.dec" 2>/dev/null; then
-        mv "${f}.dec" "$f"
-        count=$((count + 1))
-    else
-        rm -f "${f}.dec"
-        errors=$((errors + 1))
-    fi
-
-    # Прогресс
-    total=$((count + errors))
-    if [ $((total % 100)) -eq 0 ]; then
-        echo "  $total / $TS_COUNT..."
-    fi
-done
-echo "  Расшифровано: $count, ошибок: $errors"
-
-if [ "$errors" -gt 0 ]; then
-    echo "ПРЕДУПРЕЖДЕНИЕ: Некоторые файлы не удалось расшифровать"
+if [ -d "$CLIPS_4K" ]; then
+    echo ""
+    process_clips "$CLIPS_4K" "4K"
 fi
-
-# --- Сборка и ремуксирование m3u8 → MPEG-TS ---
-
-M3U8_COUNT=$(find "$BACKUP" -maxdepth 1 -name '*.m3u8' | wc -l)
-echo "[3/3] Ремуксирование $M3U8_COUNT видео..."
-
-count=0
-errors=0
-for m3u8 in "$BACKUP"/*.m3u8; do
-    name=$(basename "$m3u8")
-
-    # Собираем список .ts файлов из оригинального плейлиста
-    ts_files=""
-    while IFS= read -r line; do
-        [[ "$line" =~ ^# ]] && continue
-        [[ -z "$line" ]] && continue
-        ts_files="$ts_files|$CLIPS/$line"
-    done < "$m3u8"
-    ts_files="${ts_files:1}"
-
-    if [ -n "$ts_files" ]; then
-        if ffmpeg -y -i "concat:${ts_files}" -c copy -f mpegts "$CLIPS/$name" 2>/dev/null; then
-            count=$((count + 1))
-        else
-            errors=$((errors + 1))
-            echo "  ОШИБКА: $name"
-        fi
-    fi
-
-    # Прогресс
-    total=$((count + errors))
-    if [ $((total % 50)) -eq 0 ]; then
-        echo "  $total / $M3U8_COUNT..."
-    fi
-done
-echo "  Ремуксировано: $count, ошибок: $errors"
 
 echo ""
 echo "=== Готово ==="
 echo ""
 echo "Убедитесь, что в Steam выбран GE-Proton для этой игры."
 echo ""
-echo "Бэкап оригиналов: $BACKUP"
-echo "Для освобождения места можно удалить бэкап после проверки работоспособности."
+echo "Бэкап оригиналов: ${CLIPS}.bak"
+if [ -d "${CLIPS_4K}.bak" ]; then
+    echo "Бэкап 4K: ${CLIPS_4K}.bak"
+fi
+echo "Для освобождения места можно удалить бэкапы после проверки работоспособности."
